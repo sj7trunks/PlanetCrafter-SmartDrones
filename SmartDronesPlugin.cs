@@ -11,7 +11,7 @@ using SpaceCraft;
 
 namespace SmartDrones
 {
-    [BepInPlugin(PluginGuid, "SmartDrones", "0.4.0")]
+    [BepInPlugin(PluginGuid, "SmartDrones", "0.4.1")]
     public class SmartDronesPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "io.github.sj7trunks.smartdrones";
@@ -21,6 +21,9 @@ namespace SmartDrones
         // v0.1 toggles.
         internal static ConfigEntry<bool> EnableStarvationFix;     // GetANonAttributedTask oldest-first prefix
         internal static ConfigEntry<bool> VerboseAssignmentLog;
+
+        // v0.4.1: per-delivery fill-curve logging (Info level, not gated by VerboseAssignmentLog).
+        internal static ConfigEntry<bool> DeliveryLog;
 
         // v0.2: full coroutine replacement.
         internal static ConfigEntry<bool> FullDispatchReplacement;
@@ -118,6 +121,15 @@ namespace SmartDrones
                 "Logging", "VerboseAssignmentLog", false,
                 "Log each binding/assignment decision (with distances) at Debug level. Spammy; "
                 + "leave off unless diagnosing.");
+
+            DeliveryLog = Config.Bind(
+                "Logging", "DeliveryLog", true,
+                "Log one concise INFO line each time a drone completes a delivery into a demand "
+                + "inventory: '[t=..] DELIVERED group=<id> toDemandInv=<invId> fill=<count>/<size> "
+                + "dist=<supply->demand meters>'. NOT gated behind VerboseAssignmentLog - visible at "
+                + "normal logging so a demand inventory's FILL CURVE (how fast it reaches capacity - e.g. "
+                + "whether a rocket's FusionEnergyCell demand fills to 25 fast or trickles) is directly "
+                + "observable as a timestamped series. One line per delivery, no per-frame work.");
 
             // Always track task age (cheap, needed by both the prefix and the reimplementation).
             var ctor = AccessTools.Constructor(typeof(LogisticTask), new[]
@@ -221,7 +233,27 @@ namespace SmartDrones
                 Log.LogInfo("AllowDualRoleGroups disabled via config - vanilla SanitizeGroups left intact.");
             }
 
-            Log.LogInfo("SmartDrones 0.4.0 loaded. FullDispatchReplacement="
+            // v0.4.1 delivery fill-curve logging. Prefix Drone.DroneUnload: at prefix time the
+            // drone (__instance) still holds its _logisticTask, so the destination demand inventory,
+            // the delivered group, and supply/demand positions are all in scope. A POSTFIX cannot be
+            // used - DroneUnload calls EndAssignement() at its tail, which sets the task Done and
+            // nulls/reassigns _logisticTask, destroying the reference. The prefix only observes
+            // (returns void) so dispatch behaviour is unchanged. Runtime-gated by Logging.DeliveryLog,
+            // so we always apply the patch and let the config toggle it live.
+            var droneUnload = AccessTools.Method(typeof(Drone), "DroneUnload");
+            if (droneUnload == null)
+            {
+                Log.LogError("Could not resolve Drone.DroneUnload - delivery fill-curve logging NOT applied.");
+            }
+            else
+            {
+                _harmony.Patch(droneUnload, prefix: new HarmonyMethod(
+                    typeof(Patches), nameof(Patches.DroneUnloadPrefix)));
+                Log.LogInfo("Applied patch: Drone.DroneUnload prefix (delivery fill-curve logging, DeliveryLog="
+                          + DeliveryLog.Value + ").");
+            }
+
+            Log.LogInfo("SmartDrones 0.4.1 loaded. FullDispatchReplacement="
                       + FullDispatchReplacement.Value + ", AssignmentMode=" + AssignMode.Value
                       + ", DualRole=" + AllowDualRoleGroups.Value
                       + (FullDispatchReplacement.Value

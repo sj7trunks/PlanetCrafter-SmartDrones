@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.1
+
+- Delivery logging: each time a drone completes a delivery into a demand
+  inventory, one concise line is logged at Info level —
+  `[t=..] DELIVERED group=<id> toDemandInv=<invId> fill=<count>/<size> dist=<supply->demand meters>`.
+  This makes a demand inventory's fill curve (how fast it reaches capacity)
+  directly observable as a timestamped series. Log-only; no change to dispatch
+  behavior. Toggle with the new `Logging.DeliveryLog` config (default on).
+
 ## v0.4.0
 
 - `PriorityThenAge` task scoring: tasks are scored by request priority combined

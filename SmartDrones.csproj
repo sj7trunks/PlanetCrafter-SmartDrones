@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>SmartDrones</AssemblyName>
     <RootNamespace>SmartDrones</RootNamespace>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <Nullable>disable</Nullable>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>

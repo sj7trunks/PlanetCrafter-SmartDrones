@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using HarmonyLib;
 using SpaceCraft;
+using UnityEngine;
 
 namespace SmartDrones
 {
@@ -14,6 +16,11 @@ namespace SmartDrones
 
         private static readonly AccessTools.FieldRef<LogisticManager, bool> PausedRef =
             AccessTools.FieldRefAccess<LogisticManager, bool>("_paused");
+
+        // The drone's in-flight task. Read in the DroneUnload prefix BEFORE the method's
+        // tail call to EndAssignement() nulls/reassigns it.
+        private static readonly AccessTools.FieldRef<Drone, LogisticTask> DroneTaskRef =
+            AccessTools.FieldRefAccess<Drone, LogisticTask>("_logisticTask");
 
         // Postfix on the LogisticTask constructor: stamp each new task with the
         // next monotonic sequence number so we can order oldest-first later.
@@ -143,6 +150,138 @@ namespace SmartDrones
             }
 
             return false; // skip original
+        }
+
+        // PREFIX on Drone.DroneUnload - fires at the moment a drone completes a delivery
+        // into its task's demand inventory. At prefix time the drone still holds its
+        // _logisticTask (the tail EndAssignement() that nulls it has not run yet), so the
+        // destination demand inventory, delivered group, and supply/demand positions are all
+        // in scope. Observe-only (void, never skips the original) -> dispatch is unchanged.
+        // Emits ONE concise Info line per delivery so a demand inventory's fill curve is a
+        // directly readable, timestamped series. Everything is wrapped so it can never throw
+        // into the game loop; a null accessor degrades to a minimal line.
+        internal static void DroneUnloadPrefix(Drone __instance)
+        {
+            try
+            {
+                if (SmartDronesPlugin.DeliveryLog == null || !SmartDronesPlugin.DeliveryLog.Value
+                    || SmartDronesPlugin.Log == null)
+                {
+                    return;
+                }
+
+                LogisticTask task = null;
+                try { task = DroneTaskRef(__instance); } catch { }
+                if (task == null)
+                {
+                    return;
+                }
+
+                Inventory demandInv = task.GetDemandInventory();
+                WorldObject wo = task.GetWorldObjectToMove();
+
+                // Mirror DroneUnload's own guard: an item is added only when the drone still
+                // holds the world object and the demand inventory exists. If not, nothing is
+                // delivered on this call, so don't emit a DELIVERED line.
+                Inventory droneInv = null;
+                try { droneInv = __instance.GetDroneInventory(); } catch { }
+                bool willDeliver = demandInv != null && wo != null
+                                   && droneInv != null && droneInv.ContainWorldObject(wo);
+                if (!willDeliver)
+                {
+                    return;
+                }
+
+                string group = "null";
+                try { group = SmartDronesPlugin.GroupName(wo.GetGroup()); } catch { }
+
+                // Demand inventory id = its container world object id.
+                int invId = -1;
+                try
+                {
+                    WorldObject dwo = task.GetDemandInventoryWorldObject();
+                    if (dwo != null)
+                    {
+                        invId = dwo.GetId();
+                    }
+                    else
+                    {
+                        LogisticEntity e = demandInv.GetLogisticEntity();
+                        if (e != null && e.GetWorldObject() != null)
+                        {
+                            invId = e.GetWorldObject().GetId();
+                        }
+                    }
+                }
+                catch { }
+
+                // Fill AFTER this delivery lands: the live count plus the item about to be
+                // added (willDeliver already matched the game's own add condition).
+                string fillStr = "?/?";
+                try
+                {
+                    int size = demandInv.GetSize();
+                    int fill = demandInv.GetInsideWorldObjects().Count + 1;
+                    fillStr = fill + "/" + size;
+                }
+                catch { }
+
+                // supply -> demand distance (meters) when both positions are known.
+                string dist = "n/a";
+                try
+                {
+                    WorldObject supplyWo = task.GetIsSpawnedObject()
+                        ? wo
+                        : task.GetSupplyInventoryWorldObject();
+                    WorldObject demandWo = task.GetDemandInventoryWorldObject();
+                    if (TryWoPos(supplyWo, out Vector3 sp) && TryWoPos(demandWo, out Vector3 dp))
+                    {
+                        dist = Vector3.Distance(sp, dp).ToString("F1") + "m";
+                    }
+                }
+                catch { }
+
+                SmartDronesPlugin.Log.LogInfo(SmartDronesPlugin.TimePrefix()
+                    + "DELIVERED group=" + group + " toDemandInv=" + invId
+                    + " fill=" + fillStr + " dist=" + dist);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    SmartDronesPlugin.Log?.LogInfo(SmartDronesPlugin.TimePrefix()
+                        + "DELIVERED (log-path error: " + ex.Message + ")");
+                }
+                catch { }
+            }
+        }
+
+        // World-object position: live GameObject transform, else the stored position, else fail.
+        // Never throws.
+        private static bool TryWoPos(WorldObject wo, out Vector3 p)
+        {
+            p = default;
+            if (wo == null)
+            {
+                return false;
+            }
+            try
+            {
+                GameObject go = wo.GetGameObject();
+                if (go != null)
+                {
+                    p = go.transform.position;
+                    return true;
+                }
+                Vector3 stored = wo.GetPosition();
+                if (stored != Vector3.zero)
+                {
+                    p = stored;
+                    return true;
+                }
+            }
+            catch { }
+            return false;
         }
 
         // PREFIX on LogisticEntity.SanitizeGroups (the SOLE gate stripping any Group
