@@ -14,7 +14,7 @@ namespace SmartDrones
     [BepInPlugin(PluginGuid, "SmartDrones", "0.4.0")]
     public class SmartDronesPlugin : BaseUnityPlugin
     {
-        public const string PluginGuid = "io.m736.smartdrones";
+        public const string PluginGuid = "io.github.sj7trunks.smartdrones";
 
         internal static ManualLogSource Log;
 
