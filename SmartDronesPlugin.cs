@@ -11,7 +11,7 @@ using SpaceCraft;
 
 namespace SmartDrones
 {
-    [BepInPlugin(PluginGuid, "SmartDrones", "0.4.1")]
+    [BepInPlugin(PluginGuid, "SmartDrones", "0.4.2")]
     public class SmartDronesPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "io.github.sj7trunks.smartdrones";
@@ -36,6 +36,9 @@ namespace SmartDrones
         // v0.4: priority-aware pickup with anti-starvation aging.
         internal static ConfigEntry<int> PriorityWeight;
         internal static ConfigEntry<int> AgeWeight;
+
+        // v0.4.2: cross-pool nearest-drone preference.
+        internal static ConfigEntry<bool> PreferNearestIdleDrone;
 
         // Creation-order ("age") tracking for LogisticTask instances.
         // ConditionalWeakTable so dead tasks are GC'd with no leak; value is a
@@ -116,6 +119,20 @@ namespace SmartDrones
                 + "pairs with PriorityWeight=1000. Raising it (relative to PriorityWeight) makes aging overtake "
                 + "priority gaps faster; the ratio PriorityWeight/AgeWeight is the real knob (task-creations of "
                 + "wait per priority level before a lower-priority task wins).");
+
+            PreferNearestIdleDrone = Config.Bind(
+                "Dispatch", "PreferNearestIdleDrone", true,
+                "Phase-3 assignment picks the NEAREST available drone across BOTH pools, not just whatever "
+                + "free airborne (fleet) drone the scan reaches first. Stock/our dispatch assigns all free "
+                + "airborne drones to tasks BEFORE releasing idle station drones, so a far airborne drone "
+                + "returning from a distant delivery can grab a task that an idle drone parked 9m from the "
+                + "supply could do instantly - the near station drone is never released because the task is "
+                + "no longer unassigned. With this ON, when a drone station on the task's planet holds an "
+                + "idle drone and sits STRICTLY closer to the task's supply than the airborne drone would, we "
+                + "leave the task unassigned this pass so Phase 4 releases that nearer station drone instead. "
+                + "The task still gets exactly one drone (no double-assign); only which pool serves it changes. "
+                + "Non-mutating station check (GetNumberOfDronesInStation). Fixes the rocket last-slot ~30s "
+                + "stall where the final battery drew a far returning drone while dozens sat idle next door.");
 
             VerboseAssignmentLog = Config.Bind(
                 "Logging", "VerboseAssignmentLog", false,
@@ -253,7 +270,7 @@ namespace SmartDrones
                           + DeliveryLog.Value + ").");
             }
 
-            Log.LogInfo("SmartDrones 0.4.1 loaded. FullDispatchReplacement="
+            Log.LogInfo("SmartDrones 0.4.2 loaded. FullDispatchReplacement="
                       + FullDispatchReplacement.Value + ", AssignmentMode=" + AssignMode.Value
                       + ", DualRole=" + AllowDualRoleGroups.Value
                       + (FullDispatchReplacement.Value

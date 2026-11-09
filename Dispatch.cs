@@ -417,7 +417,28 @@ namespace SmartDrones
                                 mgr, allLogisticTasks, drone, mode, window, out bool sawAnyNotAttributed);
                             if (task != null)
                             {
-                                drone.SetLogisticTask(task, AllStationsRef(mgr));
+                                // v0.4.2 CHANGE 5: cross-pool nearest preference. If an idle
+                                // station drone sits strictly closer to this task's supply than
+                                // THIS airborne drone, don't hand the task to the far airborne
+                                // drone - leave it NotAttributed so Phase 4 releases the nearer
+                                // station drone. The task still gets exactly one drone.
+                                if (SmartDronesPlugin.PreferNearestIdleDrone.Value
+                                    && TryDronePos(drone, out Vector3 dpos)
+                                    && NearerIdleStationExists(mgr, task, dpos))
+                                {
+                                    if (SmartDronesPlugin.VerboseAssignmentLog.Value)
+                                    {
+                                        SmartDronesPlugin.Log?.LogDebug(
+                                            SmartDronesPlugin.TimePrefix()
+                                            + "defer task to nearer idle station drone "
+                                            + "(airborne drone farther from supply)");
+                                    }
+                                    // leave task unassigned; Phase 4 releases a station drone.
+                                }
+                                else
+                                {
+                                    drone.SetLogisticTask(task, AllStationsRef(mgr));
+                                }
                             }
                             else if (!sawAnyNotAttributed)
                             {
@@ -502,6 +523,45 @@ namespace SmartDrones
             }
 
             UpdatingRef(mgr) = false;
+        }
+
+        // v0.4.2: true if a drone station on the task's planet holds at least one idle
+        // drone AND sits strictly closer to the task's supply than dronePos. Non-mutating
+        // (GetNumberOfDronesInStation; never releases). Returns false on any unknown
+        // position so a bad read can never deadlock a task - stock airborne assignment then
+        // proceeds. Both pools do the same supply->demand leg, so distance-to-supply is the
+        // fair comparison.
+        private static bool NearerIdleStationExists(LogisticManager mgr, LogisticTask task, Vector3 dronePos)
+        {
+            WorldObject supplyWo = task.GetIsSpawnedObject()
+                ? task.GetWorldObjectToMove()
+                : task.GetSupplyInventoryWorldObject();
+            if (!TryPos(supplyWo, out Vector3 supplyPos))
+            {
+                return false;
+            }
+            float droneDist = Vector3.Distance(dronePos, supplyPos);
+            int planet = task.GetPlanetHash();
+            foreach (MachineDroneStation station in AllStationsRef(mgr))
+            {
+                if (station == null || station.GetPlanetHash() != planet)
+                {
+                    continue;
+                }
+                int idle;
+                try { idle = station.GetNumberOfDronesInStation(); } catch { continue; }
+                if (idle <= 0)
+                {
+                    continue;
+                }
+                Vector3 sp;
+                try { sp = station.gameObject.transform.position; } catch { continue; }
+                if (Vector3.Distance(sp, supplyPos) < droneDist)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static int CompareSupply(SupplyCand a, SupplyCand b)

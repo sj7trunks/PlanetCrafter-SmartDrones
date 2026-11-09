@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.2
+
+- Prefer nearest idle drone: when assigning a task, if a drone station with an
+  idle drone sits closer to the task's supply than the airborne drone being
+  considered, the task is left for the station-release step so the nearer idle
+  drone serves it. Fixes a last-slot delay where a far drone returning from
+  another delivery would be handed a task while idle drones sat beside the
+  supply. One drone per task still; no double-delivery. Toggle with the new
+  `Dispatch.PreferNearestIdleDrone` config (default on).
+
 ## v0.4.1
 
 - Delivery logging: each time a drone completes a delivery into a demand

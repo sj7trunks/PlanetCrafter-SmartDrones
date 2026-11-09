@@ -111,6 +111,7 @@ All keys live in `BepInEx/config/` and default to:
 | `Dispatch.PriorityWeight` | `1000` |
 | `Dispatch.AgeWeight` | `1` |
 | `Dispatch.NearestTieBreakAgeWindow` | `50` |
+| `Dispatch.PreferNearestIdleDrone` | `true` |
 | `Logging.VerboseAssignmentLog` | `false` |
 
 `AssignmentMode` accepts `FIFO`, `NearestFirst`, `FifoWithNearestTieBreak`, or
