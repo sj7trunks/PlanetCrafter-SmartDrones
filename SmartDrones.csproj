@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SmartDrones</AssemblyName>
+    <RootNamespace>SmartDrones</RootNamespace>
+    <Version>0.4.0</Version>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+
+    <!--
+      Point these at your own install before building. All reference HintPaths
+      below resolve from them, so you only edit these two lines.
+
+        GameDir     = the game's install folder (contains "Planet Crafter_Data"
+                      and, once BepInEx is installed, a "BepInEx" folder).
+        BepInExDir  = the BepInEx folder inside GameDir. Override only if your
+                      BepInEx lives somewhere non-standard.
+
+      Examples:
+        Linux / Steam:  /path/to/Steam/steamapps/common/The Planet Crafter
+        Windows:        C:\Program Files (x86)\Steam\steamapps\common\The Planet Crafter
+
+      You can also pass them on the command line instead of editing this file:
+        dotnet build -c Release "-p:GameDir=/path/to/The Planet Crafter"
+    -->
+    <GameDir Condition="'$(GameDir)' == ''">../The Planet Crafter</GameDir>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">$(GameDir)/BepInEx</BepInExDir>
+
+    <ManagedDir>$(GameDir)/Planet Crafter_Data/Managed</ManagedDir>
+    <BepInExCore>$(BepInExDir)/core</BepInExCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCore)/BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExCore)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedDir)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- LogisticManager's base type (NetworkBehaviour) lives here. -->
+    <Reference Include="Unity.Netcode.Runtime">
+      <HintPath>$(ManagedDir)/Unity.Netcode.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
