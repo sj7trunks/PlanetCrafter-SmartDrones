@@ -221,7 +221,7 @@ namespace SmartDrones
                 Log.LogInfo("AllowDualRoleGroups disabled via config - vanilla SanitizeGroups left intact.");
             }
 
-            Log.LogInfo("SmartDrones 0.3.0 loaded. FullDispatchReplacement="
+            Log.LogInfo("SmartDrones 0.4.0 loaded. FullDispatchReplacement="
                       + FullDispatchReplacement.Value + ", AssignmentMode=" + AssignMode.Value
                       + ", DualRole=" + AllowDualRoleGroups.Value
                       + (FullDispatchReplacement.Value
